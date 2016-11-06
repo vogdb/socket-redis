@@ -15,6 +15,15 @@
   ],
   "author": "Cargomedia",
   "license": "BSD",
+  "scripts": {
+    "test": "$(npm bin)/mocha"
+  },
+  "browserify": {
+    "transform": "browserify-shim"
+  },
+  "browserify-shim": {
+    "sockjs-client": "global:SockJS"
+  },
   "dependencies": {
     "underscore": "~1.7.0",
     "sockjs": "0.3.17",
@@ -22,5 +31,14 @@
     "optimist": "~0.6.1",
     "log4js": "~0.6.21",
     "validator": "~3.22.1"
+  },
+  "devDependencies": {
+    "bluebird": "^3.4.1",
+    "browserify": "^13.0.1",
+    "browserify-shim": "^3.8.12",
+    "chai": "^3.5.0",
+    "child-process-promise": "^2.0.3",
+    "mocha": "^2.5.3",
+    "sockjs-client": "^1.1.1"
   }
 }
