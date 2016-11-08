@@ -33,6 +33,7 @@
     "validator": "~3.22.1"
   },
   "devDependencies": {
+    "app-root-path": "^2.0.1",
     "bluebird": "^3.4.1",
     "browserify": "^13.0.1",
     "browserify-shim": "^3.8.12",

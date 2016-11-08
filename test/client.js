@@ -1,5 +1,5 @@
 var assert = require('chai').assert;
-var Server = require('./server');
+var Server = require('./helpers/server');
 var SocketRedis = require('../client/index');
 
 describe('Client tests', function() {

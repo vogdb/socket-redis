@@ -18,7 +18,7 @@ Server.prototype.start = function(port) {
   var command = 'node';
   var commandArgs = ['bin/socket-redis.js', '--socket-ports'].concat(ports.join(','));
   var options = {
-    cwd: path.dirname(__dirname),
+    cwd: require('app-root-path'),
     detached: false,
     capture: ['stdout', 'stderr']
   };
