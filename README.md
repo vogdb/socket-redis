@@ -31,23 +31,25 @@ npm install socket-redis [-g]
 
 
 ### Running
-You can run socket-redis using default arguments or specify them on your own.
+Socket-redis requires a config file to run. You can specify a path to it with `-c` option.
 
 Example:
 ```sh
-socket-redis --socket-ports=8090,8091,8092
+socket-redis -c=~/socket-redis/config.yml
 ```
 
-Available options:
-- `--redis-host` Specify host of redis server. Defaults to `localhost`.
-- `--socket-ports` Comma separated public ports which SockJS workers will listen on. Defaults to `8090`.
-- `--log-dir` Directory where log is stored. Script will try to create directory if needed. Defaults to `null` which means it will output to stdout.
-- `--sockjs-client-url` Specify custom url for sockjs-client library.
-- `--status-port` Specify port for http status requests. It should not be publicly accesible. Defaults to `8085`
-- `--ssl-key` Specify ssl private key file. Combine with `ssl-cert` option.
-- `--ssl-cert` Specify ssl public certificate file. Combine with `ssl-key` option. Append CA-chain within this file.
-- `--ssl-pfx` Specify ssl pfx file (key + cert). Overrides `ssl-key` and `ssl-cert` options.
-- `--ssl-passphrase` Specify file containing the ssl passphrase.
+Please read carefully through the format of the config below.
+- `redisHost`: Specify host of redis server. Defaults to `localhost`.
+- `socketPorts`: Comma separated public ports which SockJS workers will listen on. Defaults to `8090`.
+- `statusPort`: Specify port for http status requests. It should not be publicly accessible. Defaults to `8085`
+- `logDir`: Directory where log is stored. Script will try to create directory if needed. Defaults to `null` which means it will output to stdout.
+- `sockjsClientUrl`: Specify custom url for sockjs-client library. Optional.
+
+- `ssl`: optional. Only if presented it should have its required options to be filled, otherwise no need to fill `ssl.key` and etc.
+  - `key`: required if `pfx` isn't presented. Ssl private key file. Combine with `cert` option.
+  - `cert`: required if `pfx` isn't presented. Ssl public certificate file. Combine with `key` option. Append CA-chain within this file.
+  - `pfx`: required if `key` or `cert` options aren't presented. Ssl pfx file (key + cert). Overrides `key` and `cert` options.
+  - `passphrase`: optional. File containing the ssl passphrase.
 
 
 ### Messages published to redis pub/sub channel `socket-redis-up`:

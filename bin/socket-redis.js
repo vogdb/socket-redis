@@ -1,50 +1,26 @@
 #!/usr/bin/env node
-var socketRedis = require('../socket-redis.js');
-var childProcess = require('child_process');
-var utils = require('../lib/utils.js');
-var optimist = require('optimist').default('log-dir', null);
 var fs = require('fs');
-var argv = optimist.default('redis-host', 'localhost').argv;
-var redisHost = argv['redis-host'];
-var logDir = argv['log-dir'];
-var sockjsClientUrl = argv['sockjs-client-url'];
-var sslKey = argv['ssl-key'];
-var sslCert = argv['ssl-cert'];
-var sslPfx = argv['ssl-pfx'];
-var sslPassphrase = argv['ssl-passphrase'];
+var childProcess = require('child_process');
+var minimist = require('minimist');
+var socketRedis = require('../socket-redis.js');
+var utils = require('../lib/utils.js');
+var Config = require('../lib/config');
 
+var argv = minimist(process.argv.slice(2));
+var configPath = argv['c'] || __dirname + '/config.yaml';
+var config = Config.createFromFile(configPath).asHash();
 
-if (logDir) {
-  utils.logProcessInto(process, logDir + '/socket-redis.log');
+if (config.logDir) {
+  utils.logProcessInto(process, config.logDir + '/socket-redis.log');
 }
 
 if (!process.send) {
-  argv = optimist.default('socket-ports', '8090').default('status-port', '8085').argv;
-  var socketPorts = String(argv['socket-ports']).split(',');
-  var publisher = new socketRedis.Server(redisHost, argv['status-port']);
+  var socketPorts = String(config.socketPorts).split(',');
+  var publisher = new socketRedis.Server(config.redisHost, config.statusPort);
 
   socketPorts.forEach(function(socketPort) {
-    var args = ['--socket-port=' + socketPort];
-    if (logDir) {
-      args.push('--log-dir=' + logDir);
-    }
-    if (sockjsClientUrl) {
-      args.push('--sockjs-client-url=' + sockjsClientUrl);
-    }
-    if (sslKey) {
-      args.push('--ssl-key=' + sslKey);
-    }
-    if (sslCert) {
-      args.push('--ssl-cert=' + sslCert);
-    }
-    if (sslPfx) {
-      args.push('--ssl-pfx=' + sslPfx);
-    }
-    if (sslPassphrase) {
-      args.push('--ssl-passphrase=' + sslPassphrase);
-    }
     var startWorker = function() {
-      var worker = childProcess.fork(__filename, args);
+      var worker = childProcess.fork(__filename, ['-c=' + configPath, '--socket-port=' + socketPort]);
       console.log('Starting worker `' + worker.pid + '` to listen on port `' + socketPort + '`');
       publisher.addWorker(worker);
       worker.on('exit', function() {
@@ -65,33 +41,8 @@ if (!process.send) {
   });
 
 } else {
-  var sslOptions = null;
-  if (sslKey && sslCert) {
-    sslOptions = {
-      key: fs.readFileSync(sslKey)
-    };
-
-    var certFile = fs.readFileSync(sslCert).toString();
-    var certs = certFile.match(/(-+BEGIN CERTIFICATE-+[\s\S]+?-+END CERTIFICATE-+)/g);
-    if (certs && certs.length) {
-      sslOptions.cert = certs.shift();
-      if (certs.length) {
-        sslOptions.ca = certs;
-      }
-    } else {
-      sslOptions.cert = certFile;
-    }
-  }
-  if (sslPfx) {
-    sslOptions = {
-      pfx: fs.readFileSync(sslPfx)
-    };
-  }
-  if (sslOptions && sslPassphrase) {
-    sslOptions.passphrase = fs.readFileSync(sslPassphrase).toString().trim();
-  }
   var socketPort = argv['socket-port'];
-  var worker = new socketRedis.Worker(process, socketPort, sockjsClientUrl, sslOptions);
+  var worker = new socketRedis.Worker(process, socketPort, config.sockjsClientUrl, config.ssl);
   process.on('message', function(event) {
     worker.triggerEventDown(event.type, event.data);
   });

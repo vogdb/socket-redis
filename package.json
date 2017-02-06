@@ -1,6 +1,6 @@
 {
   "name": "socket-redis",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "description": "Redis to SockJS relay",
   "main": "socket-redis.js",
   "bin": {
@@ -26,8 +26,10 @@
   },
   "dependencies": {
     "bluebird": "^3.4.7",
+    "js-yaml": "^3.7.0",
+    "jsonschema": "^1.1.1",
     "log4js": "~0.6.21",
-    "optimist": "~0.6.1",
+    "minimist": "^1.2.0",
     "redis": "~0.12.1",
     "sockjs": "0.3.17",
     "underscore": "~1.7.0",

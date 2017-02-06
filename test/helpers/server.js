@@ -1,7 +1,9 @@
+var fs = require('fs');
 var path = require('path');
 var _ = require('underscore');
 var spawn = require('child-process-promise').spawn;
 var Promise = require('bluebird');
+var jsYaml = require('js-yaml');
 
 function Server() {
   this._process = null;
@@ -15,8 +17,10 @@ function Server() {
  */
 Server.prototype.start = function(port) {
   var ports = Array.prototype.slice.call(arguments);
+  var configPath = path.join(__dirname, 'config.test.yml');
+  fs.writeFileSync(configPath, jsYaml.dump({socketPorts: ports}), {encoding: 'utf8', flag: 'w'});
   var command = 'node';
-  var commandArgs = ['bin/socket-redis.js', '--socket-ports'].concat(ports.join(','));
+  var commandArgs = ['bin/socket-redis.js', '-c', configPath];
   var options = {
     cwd: require('app-root-path'),
     detached: false,
