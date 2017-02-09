@@ -10,6 +10,7 @@ describe('Server tests', function() {
   var REDIS_PORT = 6379;
   var REDIS_HOST = 'localhost';
   var STATUS_PORT = 9993;
+  var STATUS_SECRET = 'secret';
 
   function getWorkerStub() {
     return {pid: 'pid', kill: _.noop, send: _.noop};
@@ -25,7 +26,7 @@ describe('Server tests', function() {
   });
 
   beforeEach(function(done) {
-    this.server = new Server(REDIS_HOST, STATUS_PORT);
+    this.server = new Server(REDIS_HOST, STATUS_PORT, STATUS_SECRET);
     setTimeout(done, 100);
   });
 
@@ -38,7 +39,7 @@ describe('Server tests', function() {
     var server = this.server;
     assert(server._redisClientDown.connected);
     assert(server._redisClientUp.connected);
-    assert(server._statusServer.listening);
+    assert(server._statusServer._server.listening);
   });
 
   it('stops Server', function(done) {
@@ -128,11 +129,11 @@ describe('Server tests', function() {
             return 111;
           }
         };
-        this.server.addStatusRequest(statusRequest);
+        this.server._statusServer.addStatusRequest(statusRequest);
       });
 
       afterEach(function() {
-        this.server.removeStatusRequest(statusRequest);
+        this.server._statusServer.removeStatusRequest(statusRequest);
       });
 
       it('up-status-request', function(done) {
@@ -160,10 +161,10 @@ describe('Server tests', function() {
     });
 
     it('statusRequest is added/removed', function(done) {
-      requestPromise({uri: statusServerUri, simple: false});
+      requestPromise({uri: statusServerUri, headers: {'Authorization': 'Token ' + STATUS_SECRET}, simple: false});
 
       _.delay(function() {
-        var statusRequests = this.server.getStatusRequests();
+        var statusRequests = this.server._statusServer.getStatusRequests();
         assert.strictEqual(_.size(statusRequests), 1);
         var statusRequest = statusRequests[Object.keys(statusRequests)[0]];
         statusRequest.emit('complete');
@@ -175,12 +176,23 @@ describe('Server tests', function() {
     it('request is sent down', function(done) {
       worker.send = function(message) {
         assert.equal(message.type, 'down-status-request');
-        var statusRequests = this.server.getStatusRequests();
+        var statusRequests = this.server._statusServer.getStatusRequests();
         var statusRequest = statusRequests[Object.keys(statusRequests)[0]];
         assert.deepEqual(message.data, {requestId: statusRequest.getId()});
         done();
       }.bind(this);
-      requestPromise(statusServerUri);
+      requestPromise({uri: statusServerUri, headers: {'Authorization': 'Token ' + STATUS_SECRET}});
+    });
+
+    it('rejects unauthenticated', function(done) {
+      requestPromise(statusServerUri)
+        .then(function() {
+          done(new Error('Unauthenticated request must be rejected'));
+        })
+        .catch(function(error) {
+          assert.include(error.message, 'not authenticated');
+          done();
+        });
     });
   });
 

@@ -44,6 +44,7 @@ Please read carefully through the format of the config below.
 - `statusPort`: Specify port for http status requests. It should not be publicly accessible. Defaults to `8085`
 - `logDir`: Directory where log is stored. Script will try to create directory if needed. Defaults to `null` which means it will output to stdout.
 - `sockjsClientUrl`: Specify custom url for sockjs-client library. Optional.
+- `statusSecret` Specify secret token to allow/deny http status requests. Optional.
 
 - `ssl`: optional. Only if presented it should have its required options to be filled, otherwise no need to fill `ssl.key` and etc.
   - `key`: required if `pfx` isn't presented. Ssl private key file. Combine with `cert` option.
@@ -108,6 +109,7 @@ socketRedis.onopen = function() {
 
 	socketRedis.unsubscribe('channel-name');
 };
+socketRedis.open();
 ```
 
 To publish messages to a channel from the client:

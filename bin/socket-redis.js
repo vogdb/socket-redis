@@ -16,7 +16,7 @@ if (config.logDir) {
 
 if (!process.send) {
   var socketPorts = String(config.socketPorts).split(',');
-  var publisher = new socketRedis.Server(config.redisHost, config.statusPort);
+  var publisher = new socketRedis.Server(config.redisHost, config.statusPort, config.statusSecret);
 
   socketPorts.forEach(function(socketPort) {
     var startWorker = function() {
