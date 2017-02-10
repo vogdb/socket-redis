@@ -1,4 +1,5 @@
 var assert = require('chai').assert;
+var RedisServer = require('redis-server');
 var Server = require('./helpers/server');
 var SocketRedis = require('../client/index');
 
@@ -8,10 +9,13 @@ describe('Client tests', function() {
 
   before(function() {
     server = new Server();
+    this.redisServer = new RedisServer(6379);
+    return this.redisServer.open();
   });
 
   after(function() {
     server.terminate();
+    return this.redisServer.close();
   });
 
   context('one client', function() {
