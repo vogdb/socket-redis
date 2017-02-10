@@ -1,22 +1,19 @@
 var assert = require('chai').assert;
 var _ = require('underscore');
+var sinon = require('sinon');
 var requestPromise = require('request-promise');
 var redis = require('redis');
 var RedisServer = require('redis-server');
+var Config = require('../lib/config');
 var Server = require('../lib/server');
 
 describe('Server tests', function() {
 
+  var config;
   var REDIS_PORT = 6379;
-  var REDIS_HOST = 'localhost';
-  var STATUS_PORT = 9993;
-  var STATUS_SECRET = 'secret';
-
-  function getWorkerStub() {
-    return {pid: 'pid', kill: _.noop, send: _.noop};
-  }
 
   before(function() {
+    config = Config.createFromFile('test/config.test.yml');
     this.redisServer = new RedisServer(REDIS_PORT);
     return this.redisServer.open();
   });
@@ -26,13 +23,12 @@ describe('Server tests', function() {
   });
 
   beforeEach(function(done) {
-    this.server = new Server(REDIS_HOST, STATUS_PORT, STATUS_SECRET);
+    this.server = new Server(config);
     setTimeout(done, 100);
   });
 
-  afterEach(function(done) {
-    this.server.stop();
-    setTimeout(done, 100);
+  afterEach(function() {
+    return this.server.stop();
   });
 
   it('creates Server', function() {
@@ -42,15 +38,13 @@ describe('Server tests', function() {
     assert(server._statusServer._server.listening);
   });
 
-  it('stops Server', function(done) {
+  it('stops Server', function() {
     var server = this.server;
-    server.stop();
-    _.delay(function() {
+    return server.stop().then(function() {
       assert(!server._redisClientDown.connected);
       assert(!server._redisClientUp.connected);
       assert(!server._statusServer.listening);
-      done();
-    }, 200);
+    });
   });
 
   context('triggerEventUp', function() {
@@ -103,21 +97,21 @@ describe('Server tests', function() {
     context('down messages', function() {
       var worker;
       beforeEach(function() {
-        worker = getWorkerStub();
-        this.server.addWorker(worker);
-      });
-      afterEach(function() {
-        this.server.removeWorker(worker);
+        var workers = this.server._workers;
+        worker = workers[Object.keys(workers)[0]];
       });
 
       it('up-publish', function(done) {
-        worker.send = function(message) {
+        var sampleMessage = {channel: 'up-publish-channel', event: 'up-publish-clientKey', data: 'up-publish-data'};
+        var workerSpy = sinon.spy(worker, 'send');
+        this.server.triggerEventUp('up-publish', sampleMessage);
+        _.defer(function() {
+          assert(workerSpy.calledOnce);
+          var message = workerSpy.getCall(0).args[0];
           assert.equal(message.type, 'down-publish');
           assert.deepEqual(message.data, sampleMessage);
           done();
-        };
-        var sampleMessage = {channel: 'up-publish-channel', event: 'up-publish-clientKey', data: 'up-publish-data'};
-        this.server.triggerEventUp('up-publish', sampleMessage);
+        });
       });
     });
 
@@ -149,49 +143,38 @@ describe('Server tests', function() {
   });
 
   context('status server', function() {
-    var statusServerUri = 'http://localhost:' + STATUS_PORT;
+    var statusServerUri;
 
-    var worker;
-    beforeEach(function() {
-      worker = getWorkerStub();
-      this.server.addWorker(worker);
-    });
-    afterEach(function() {
-      this.server.removeWorker(worker);
+    before(function() {
+      statusServerUri = 'http://localhost:' + config.asHash().statusPort;
     });
 
-    it('statusRequest is added/removed', function(done) {
-      requestPromise({uri: statusServerUri, headers: {'Authorization': 'Token ' + STATUS_SECRET}, simple: false});
-
-      _.delay(function() {
-        var statusRequests = this.server._statusServer.getStatusRequests();
-        assert.strictEqual(_.size(statusRequests), 1);
-        var statusRequest = statusRequests[Object.keys(statusRequests)[0]];
-        statusRequest.emit('complete');
-        assert.strictEqual(_.size(statusRequests), 0);
-        done();
-      }.bind(this), 100);
+    it('statusRequest is added/removed', function() {
+      var addStatusSpy = sinon.spy(this.server._statusServer, 'addStatusRequest');
+      var removeStatusSpy = sinon.spy(this.server._statusServer, 'removeStatusRequest');
+      return requestPromise({uri: statusServerUri, headers: {'Authorization': 'Token ' + config.asHash().statusSecret}, simple: false}).then(function() {
+        assert(addStatusSpy.calledOnce);
+        assert(removeStatusSpy.calledOnce);
+      });
     });
 
-    it('request is sent down', function(done) {
-      worker.send = function(message) {
+    it('request is sent down', function() {
+      var workers = this.server._workers;
+      var worker = workers[Object.keys(workers)[0]];
+      var workerSpy = sinon.spy(worker, 'send');
+      return requestPromise({uri: statusServerUri, headers: {'Authorization': 'Token ' + config.asHash().statusSecret}}).then(function() {
+        var message = workerSpy.getCall(0).args[0];
         assert.equal(message.type, 'down-status-request');
-        var statusRequests = this.server._statusServer.getStatusRequests();
-        var statusRequest = statusRequests[Object.keys(statusRequests)[0]];
-        assert.deepEqual(message.data, {requestId: statusRequest.getId()});
-        done();
-      }.bind(this);
-      requestPromise({uri: statusServerUri, headers: {'Authorization': 'Token ' + STATUS_SECRET}});
+      });
     });
 
-    it('rejects unauthenticated', function(done) {
-      requestPromise(statusServerUri)
+    it('rejects unauthenticated', function() {
+      return requestPromise(statusServerUri)
         .then(function() {
-          done(new Error('Unauthenticated request must be rejected'));
+          throw new Error('Unauthenticated request must be rejected');
         })
         .catch(function(error) {
           assert.include(error.message, 'not authenticated');
-          done();
         });
     });
   });
@@ -201,28 +184,30 @@ describe('Server tests', function() {
     var publishDown;
     var worker;
     beforeEach(function() {
-      worker = getWorkerStub();
-      this.server.addWorker(worker);
-
-      downPublisher = redis.createClient(REDIS_PORT, REDIS_HOST);
+      var workers = this.server._workers;
+      worker = workers[Object.keys(workers)[0]];
+      downPublisher = redis.createClient(REDIS_PORT, config.asHash().redisHost);
       publishDown = function(message) {
         downPublisher.publish('socket-redis-down', JSON.stringify(message));
       };
     });
 
     afterEach(function() {
-      this.server.removeWorker(worker);
       downPublisher.quit();
     });
 
     it('handles publish event', function(done) {
+      var workerSpy = sinon.spy(worker, 'send');
       var sampleMessage = {type: 'publish', data: {channel: 'publish-channel', event: 'publish-event', data: 'publish-data'}};
-      worker.send = function(message) {
+      publishDown(sampleMessage);
+
+      _.delay(function() {
+        assert(workerSpy.calledOnce);
+        var message = workerSpy.getCall(0).args[0];
         assert.equal(message.type, 'down-publish');
         assert.deepEqual(message.data, sampleMessage.data);
         done();
-      };
-      publishDown(sampleMessage);
+      }, 100);
     });
   });
 
