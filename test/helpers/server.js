@@ -35,10 +35,17 @@ Server.prototype.start = function(port) {
       reject(new Error('Server start timeout'));
     }, 1900);
 
-    promise.childProcess.stdout.on('data', _.debounce(function() {
-      promise.childProcess.stdout.removeAllListeners('data');
+    var startResolve = _.debounce(function() {
+      promise.childProcess.stdout.removeListener('data', startResolve);
       resolve(promise.childProcess);
-    }, 500));
+    }, 500);
+    promise.childProcess.stdout.on('data', startResolve);
+    promise.childProcess.stderr.on('data', function(data) {
+      console.log(data.toString());
+    });
+    promise.childProcess.stdout.on('data', function(data) {
+      console.log(data.toString());
+    });
   });
 };
 
